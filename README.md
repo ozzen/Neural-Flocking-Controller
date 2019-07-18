@@ -1,1 +1,1 @@
-# Neural-Flocking-Controller
+# Neural Flocking Controller
