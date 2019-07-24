@@ -99,7 +99,6 @@ end = time.perf_counter()
 #output training time
 print(end - start)
 
-
 #training error visualization
 plt.plot(history.history['loss'])
 plt.title('Model Loss')
@@ -107,7 +106,7 @@ plt.ylabel('Error')
 plt.xlabel('Epoch')
 plt.show()
 
-##testing phase
+#testing phase
 
 #initial configuration for testing
 test_input = df.head(1)
@@ -126,12 +125,11 @@ test_final = pd.DataFrame(columns=['px0', 'py0', 'qx0', 'qy0', 'px1', 'py1', 'qx
 COLUMN_NAMES = test_input.columns
 finaldf = pd.DataFrame(columns=COLUMN_NAMES)
 
-# t_input = ['px0', 'px1', 'px2', 'px3', 'px4', 'px5', 'py0', 'py1', 'py2', 'py3', 'py4', 'py5',
-#           'qx0', 'qx1', 'qx2', 'qx3', 'qx4', 'qx5', 'qy0', 'qy1', 'qy2', 'qy3', 'qy4', 'qy5']
-
 #repeat for number of time steps for the neural controller
 steps = 1
-while steps < 4:
+while steps < 335:
+
+    #generating inter-agent distance data at each time step
     for i in range(1, n+1):
         for j in range(1, n+1):
             test_dist['%d' % (j)] = np.sqrt((test_input['px' '%d' % (i)] - test_input['px' '%d' % (j)]) ** 2 + (
@@ -141,6 +139,8 @@ while steps < 4:
     t_rank = step_test_dist.apply(np.argsort, axis=1)
     t_ranked_cols = step_test_dist.columns.to_series()[t_rank.values[:, ::1][:, :k + 1]]
     test_frame = pd.DataFrame(t_ranked_cols, index=step_test_dist.index)
+
+    # generating k-nearest neighbor data for every agent at each time steps
     for index in range(0, n):
         for p in range(0, k+1):
             j = int(test_frame.iloc[index, p])
@@ -150,37 +150,31 @@ while steps < 4:
             testdf['qy' '%d' % (p)] = test_input['qy' '%d' % (j)]
         test_final.loc[testdf.index[0] + index] = testdf.iloc[0]
 
+    #testing
     testinput = test_final[inputs]
     test = testinput.values
     X_test = sc.fit_transform(test)
     y_pred = model.predict(X_test)
     # print(y_pred)
 
+    #storing the controller generated accelearations for all agents
     for i in range(0, n):
         test_input['ax' '%d' % (i + 1)] = y_pred[i, 0]
         test_input['ay' '%d' % (i + 1)] = y_pred[i, 1]
 
+    #generating positions and velocities for all agents for next time step using motion dynamics
     for j in range(1, n+1):
         test_input['qx' '%d' % (j)] = test_input['qx' '%d' % (j)] + dt * test_input['ax' '%d' % (j)]
         test_input['qy' '%d' % (j)] = test_input['qy' '%d' % (j)] + dt * test_input['ay' '%d' % (j)]
         test_input['px' '%d' % (j)] = test_input['px' '%d' % (j)] + dt * test_input['qx' '%d' % (j)]
         test_input['py' '%d' % (j)] = test_input['py' '%d' % (j)] + dt * test_input['qy' '%d' % (j)]
 
+    #stores the final dataframe outputting the results
     finaldf.loc[test_input.index[0] + steps] = test_input.iloc[0]
     steps = steps + 1
-print(finaldf)
 
-#mean squared error calculation
-# mse_test = mean_squared_error(y.head(1), y_pred)
-# print (mse_test)
-# print(y_pred)
-#
-# model1 = Sequential()
-#
-# model1.add(LSTM(35, input_shape=(334,24),return_sequences = True, activation='sigmoid'))
-# model1.add(LSTM(35,return_sequences=True))
-# model1.add(LSTM(2,return_sequences=True))
-#
-# model1.compile(loss='mean_squared_error', optimizer='adam', metrics=['accuracy'])
-# model1.summary()
-#history1 = model1.fit(X1, Y1, batch_size=1000, epochs=10000, verbose = 2)
+    #keeping track of progress
+    print(steps)
+
+#output results to a csv file
+finaldf.to_csv('/Users/admin/Desktop/supervised_flocking/data/finaldf.csv', index=False)
